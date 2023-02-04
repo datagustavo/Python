@@ -1,0 +1,57 @@
+while True:
+  from IPython.core.display import clear_output
+  import pandas as pd
+  import psycopg2
+  from datetime import datetime
+  import time
+  connection = psycopg2.connect(
+    host='',
+    database='',
+    user='',
+    password='',
+    port='')
+  start = '2023-01-30 00:00:00'
+  today = str(datetime.today())
+  query1 = f"""
+    SELECT b.*
+    From (SELECT
+    counter          as Guia,
+    DATE(updated_at) as Fecha,
+    TO_CHAR(updated_at, 'YYYY')  as Anio,
+    TO_CHAR(updated_at, 'Month') as Mes,
+    cat.description  as Motivo,
+    currentstatus    as Estatus,
+    UA.company       as Cliente,
+    packagesize      as Size,
+    c.deliverytype   as Ship_Method,
+    ct.region        as Region,
+    ct.station_code  as Destino,
+    EXTRACT(DAY FROM age(updated_at,date(l.created))) AS LT,
+    CASE WHEN updated_at <= od.etd then 'On Time' ELSE 'Delay' END AS OTD,
+    CASE WHEN currentstatus in ('6','12','19') THEN 'Entregado' ELSE 'No entregado' END AS DS,
+    CASE WHEN currentstatus in ('6','12','19','8','16','21','22','18','11','9') THEN 'Attempted' ELSE 'Not attempted' END AS DA,
+    row_number() over (PARTITION BY counter, currentstatus order by l.created) AS flag1
+    FROM orders
+    full outer join logsorders l             on l.orderid = orders.id
+    right join orderdetails od               on od.orderid = orders.id
+    inner join catdestinationadress daddress on daddress.id = destionationadressid
+    inner join useraccounts UA               on UA.id = userid
+    right join catstatus cat                 on cat.code = orders.currentstatus
+    right join catypedeliveries c            on orders.deliverytypeid = c.id
+    inner join zipcodes_station_v6 ct        on daddress.zipcode = ct.zipcode
+    WHERE currentstatus in ('6','12','19','3','10','17','8','16','9','18','21','22','11','14.1','14.2','14.4','14.11','15','15.1')
+    and updated_at BETWEEN '{start}' AND '{today}'
+    and l.statusid in ('2','4','4.1')
+    and UA.country in ('MEX')
+    and UA.company NOT ILIKE 'Ikea%'
+    and UA.company NOT ILIKE '99%'
+    and UA.company NOT LIKE 'Virgin Mobile'
+    and UA.company NOT ILIKE '%Kimex%'
+    and ct.station_code is not null
+    ) as b
+    where flag1 = 1
+    """
+  df = pd.read_sql_query(query1, con=connection)
+  print(df)
+  time.sleep(7600)
+  clear_output()
